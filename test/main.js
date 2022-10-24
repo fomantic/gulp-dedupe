@@ -1,10 +1,8 @@
 var dedupe = require('../');
 var should = require('should');
-var through = require('through');
 var path = require('path');
 var Vinyl = require('vinyl');
 var Buffer = require('buffer').Buffer;
-var fs = require('fs');
 require('mocha');
 
 
@@ -82,7 +80,7 @@ describe('gulp-dedupe', function() {
 
             it('should dedupe files', function(done) {
                 stream.on('data', function (file) {
-                    var expectedFilename = results.shift(),
+                    var expectedFilename = path.normalize(results.shift()),
                         expectedHead = results.shift();
                     should.exist(file);
                     should.exist(file.relative);
@@ -112,7 +110,7 @@ describe('gulp-dedupe', function() {
                 while (files.length) {
                     stream.write(new Vinyl({
                         path: files.shift(),
-                        contents: new Buffer(files.shift())
+                        contents: Buffer.from(files.shift())
                     }));
                 }
 
@@ -122,7 +120,7 @@ describe('gulp-dedupe', function() {
                     results = null;
                     done();
                 }
-            });
+            }).timeout(5000);
         }
     });
 });
