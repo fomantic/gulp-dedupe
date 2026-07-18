@@ -1,126 +1,156 @@
-var dedupe = require('../');
-var should = require('should');
-var path = require('path');
-var Vinyl = require('vinyl');
-var Buffer = require('buffer').Buffer;
-require('mocha');
+const test = require('node:test');
+const assert = require('node:assert');
+const dedupe = require('../');
+const path = require('path');
+const Vinyl = require('vinyl');
+const Buffer = require('buffer').Buffer;
 
+testDedupe(
+    undefined,
+    [
+        'file1.txt', 'Contents1',
+        'file1.txt', 'Contents1',
+        'file2.txt', 'Contents2',
+        'file1.txt', 'Contents1',
+        'file2.txt', 'Contents2',
+        'file3.txt', 'Contents3',
+        'file4.txt', 'Contents4',
+        'test/file1.txt', 'Contents1',
+        'file4.txt', 'Contents4'
+    ],
+    [
+        'file1.txt', 'Contents1',
+        'file2.txt', 'Contents2',
+        'file3.txt', 'Contents3',
+        'file4.txt', 'Contents4',
+        'test/file1.txt', 'Contents1'
+    ]
+);
 
-describe('gulp-dedupe', function() {
-    describe('dedupe()', function() {
-        testDedupe(
-            undefined,
-            [
-                'file1.txt', 'Contents1',
-                'file1.txt', 'Contents1',
-                'file2.txt', 'Contents2',
-                'file1.txt', 'Contents1',
-                'file2.txt', 'Contents2',
-                'file3.txt', 'Contents3',
-                'file4.txt', 'Contents4',
-                'test/file1.txt', 'Contents1',
-                'file4.txt', 'Contents4'
-            ],
-            [
-                'file1.txt', 'Contents1',
-                'file2.txt', 'Contents2',
-                'file3.txt', 'Contents3',
-                'file4.txt', 'Contents4',
-                'test/file1.txt', 'Contents1'
-            ]
-        );
+testDedupe(
+    { error: true },
+    [
+        'file1.txt', 'Contents1',
+        'file1.txt', 'Contents1'
+    ],
+    [
+        'file1.txt', 'Contents1', 'Duplicate `file1.txt`'
+    ]
+);
 
-        testDedupe(
-            {error: true},
-            [
-                'file1.txt', 'Contents1',
-                'file1.txt', 'Contents1'
-            ],
-            [
-                'file1.txt', 'Contents1', 'Duplicate `file1.txt`'
-            ]
-        );
+testDedupe(
+    undefined,
+    [
+        'file1.txt', 'Contents1',
+        'file1.txt', 'Contents2'
+    ],
+    [
+        'file1.txt', 'Contents1', 'Duplicate file `file1.txt` with different contents'
+    ]
+);
 
+testDedupe(
+    { diff: true },
+    [
+        'file1.txt', 'Contents1',
+        'file1.txt', 'Contents2'
+    ],
+    [
+        'file1.txt', 'Contents1', 'Duplicate file `file1.txt` with different contents:\n'
+    ]
+);
 
-        testDedupe(
-            undefined,
-            [
-                'file1.txt', 'Contents1',
-                'file1.txt', 'Contents2'
-            ],
-            [
-                'file1.txt', 'Contents1', 'Duplicate file `file1.txt` with different contents'
-            ]
-        );
+testDedupe(
+    { same: false },
+    [
+        'file1.txt', 'Contents1',
+        'file1.txt', 'Contents2'
+    ],
+    [
+        'file1.txt', 'Contents1'
+    ]
+);
 
-        testDedupe(
-            {diff: true},
-            [
-                'file1.txt', 'Contents1',
-                'file1.txt', 'Contents2'
-            ],
-            [
-                'file1.txt', 'Contents1', 'Duplicate file `file1.txt` with different contents:\n'
-            ]
-        );
+function testDedupe(options, filesInput, resultsInput) {
+    test('should dedupe files', { timeout: 5000 }, async () => {
+        const stream = dedupe(options);
 
-        testDedupe(
-            {same: false},
-            [
-                'file1.txt', 'Contents1',
-                'file1.txt', 'Contents2'
-            ],
-            [
-                'file1.txt', 'Contents1'
-            ]
-        );
+        const files = filesInput.slice();
+        let results = resultsInput.slice();
 
-        function testDedupe(options, files, results) {
-            var stream = dedupe(options);
+        await new Promise((resolve, reject) => {
+            stream.on('data', (file) => {
+                const expectedFilename = path.normalize(results.shift());
+                const expectedHead = results.shift();
 
-            it('should dedupe files', function(done) {
-                stream.on('data', function (file) {
-                    var expectedFilename = path.normalize(results.shift()),
-                        expectedHead = results.shift();
-                    should.exist(file);
-                    should.exist(file.relative);
-                    should.exist(file.contents);
-                    should.exist(expectedFilename);
-                    should.exist(expectedHead);
+                assert.ok(file);
+                assert.ok(file.relative);
+                assert.ok(file.contents);
+                assert.ok(expectedFilename);
+                assert.ok(expectedHead);
 
-                    var retFilename = path.resolve(file.path);
-                    retFilename.should.equal(path.resolve(expectedFilename));
-                    file.relative.should.equal(expectedFilename);
+                const retFilename = path.resolve(file.path);
 
-                    Buffer.isBuffer(file.contents).should.equal(true);
-                    file.contents.toString().substring(0, expectedHead.length).should.equal(expectedHead);
+                assert.strictEqual(
+                    retFilename,
+                    path.resolve(expectedFilename)
+                );
 
-                    if (results && !results.length) {
-                        results = null;
-                        done();
-                    }
-                });
+                assert.strictEqual(
+                    file.relative,
+                    expectedFilename
+                );
 
-                stream.on('error', function(err) {
-                    var expected = results.shift();
-                    var msg = (err.message || '').substring(0, expected.length);
-                    msg.should.equal(expected);
-                });
+                assert.strictEqual(
+                    Buffer.isBuffer(file.contents),
+                    true
+                );
 
-                while (files.length) {
-                    stream.write(new Vinyl({
+                assert.strictEqual(
+                    file.contents
+                        .toString()
+                        .substring(0, expectedHead.length),
+                    expectedHead
+                );
+
+                if (!results.length) {
+                    results = null;
+                    resolve();
+                }
+            });
+
+            stream.on('error', (err) => {
+                const expected = results.shift();
+                const msg = (err.message || '').substring(0, expected.length);
+
+                try {
+                    assert.strictEqual(msg, expected);
+                } catch (e) {
+                    reject(e);
+                    return;
+                }
+            });
+
+            stream.on('end', () => {
+                if (results && !results.length) {
+                    resolve();
+                }
+            });
+
+            while (files.length) {
+                stream.write(
+                    new Vinyl({
                         path: files.shift(),
                         contents: Buffer.from(files.shift())
-                    }));
-                }
+                    })
+                );
+            }
 
-                stream.end();
+            stream.end();
 
-                if (results && !results.length) {
-                    results = null;
-                    done();
-                }
-            }).timeout(5000);
-        }
+            if (results && !results.length) {
+                resolve();
+            }
+        });
     });
-});
+}

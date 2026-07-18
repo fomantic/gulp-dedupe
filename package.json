@@ -1,7 +1,7 @@
 {
     "name": "@fomantic/gulp-dedupe",
     "description": "Check for duplicates in the stream and filter them or throw an error",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "homepage": "https://github.com/fomantic/gulp-dedupe",
     "repository": "git://github.com/fomantic/gulp-dedupe.git",
     "author": "Marat Abdullin <dakota@brokenpipe.ru>",
@@ -17,20 +17,17 @@
     },
     "dependencies": {
         "colors": "^1.4.0",
-        "diff": "^5.1.0",
+        "diff": "^5.2.2",
         "lodash.defaults": "^4.2.0",
         "plugin-error": "^2.0.0",
         "through": "^2.3.8"
     },
     "devDependencies": {
-        "mocha": "^9.2.2",
-        "nyc": "^15.1.0",
-        "should": "^13.2.3",
         "vinyl": "^3.0.0"
     },
     "scripts": {
-        "test": "mocha",
-        "coverage": "nyc mocha"
+        "test": "node --test",
+        "coverage": "node --test --experimental-test-coverage"
     },
     "engines": {
         "node": ">=12"
